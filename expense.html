@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💸 Expense Tracker Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: radial-gradient(circle at 10% 20%, #0f2027, #203a43, #2c5364);
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      border-radius: 1rem;
+    }
+    .btn-glow {
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .btn-glow::before {
+      content: '';
+      position: absolute;
+      top: -100%;
+      left: -100%;
+      width: 300%;
+      height: 300%;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6, #60a5fa);
+      transition: all 0.6s ease;
+      opacity: 0.2;
+    }
+    .btn-glow:hover::before {
+      top: 0;
+      left: 0;
+      opacity: 0.35;
+    }
+    .hover-lift {
+      transition: all 0.3s ease;
+    }
+    .hover-lift:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    }
+    .fade-in {
+      animation: fadeIn 0.6s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="p-6">
+
+  <div id="app" class="max-w-6xl mx-auto fade-in"></div>
+
+  <script>
+    const categories = [
+      { value: 'personal', label: '👤 Personal', color: 'bg-indigo-500/30 text-indigo-200' },
+      { value: 'bills', label: '💡 Bills', color: 'bg-yellow-500/30 text-yellow-200' },
+      { value: 'food', label: '🍔 Food', color: 'bg-orange-500/30 text-orange-200' },
+      { value: 'transport', label: '🚗 Transport', color: 'bg-blue-500/30 text-blue-200' },
+      { value: 'shopping', label: '🛍️ Shopping', color: 'bg-pink-500/30 text-pink-200' },
+      { value: 'entertainment', label: '🎬 Entertainment', color: 'bg-purple-500/30 text-purple-200' },
+      { value: 'health', label: '⚕️ Health', color: 'bg-green-500/30 text-green-200' },
+      { value: 'other', label: '📦 Other', color: 'bg-gray-500/30 text-gray-200' }
+    ];
+
+    let expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
+    let currentTimeFilter = 'all';
+    let currentCategoryFilter = 'all';
+
+    function saveToLocalStorage() {
+      localStorage.setItem('expenses', JSON.stringify(expenses));
+    }
+
+    function addExpense() {
+      const description = document.getElementById('description').value.trim();
+      const amount = parseFloat(document.getElementById('amount').value);
+      const category = document.getElementById('category').value;
+      const date = document.getElementById('date').value;
+
+      if (!description || !amount) {
+        alert('Please enter valid description and amount!');
+        return;
+      }
+
+      expenses.unshift({
+        id: Date.now(),
+        description,
+        amount,
+        category,
+        date,
+        timestamp: new Date().toISOString()
+      });
+
+      saveToLocalStorage();
+      document.getElementById('description').value = '';
+      document.getElementById('amount').value = '';
+      render();
+    }
+
+    function deleteExpense(id) {
+      if (confirm('Delete this expense?')) {
+        expenses = expenses.filter(exp => exp.id !== id);
+        saveToLocalStorage();
+        render();
+      }
+    }
+
+    function clearAllData() {
+      if (confirm('This will delete ALL data. Proceed?')) {
+        expenses = [];
+        saveToLocalStorage();
+        render();
+      }
+    }
+
+    function exportToCSV() {
+      const data = getFilteredExpenses();
+      if (data.length === 0) return alert('No expenses to export!');
+      let csv = 'Date,Description,Category,Amount\n';
+      data.forEach(e => csv += `${e.date},"${e.description}",${e.category},${e.amount}\n`);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'expenses.csv';
+      a.click();
+    }
+
+    function setTimeFilter(f) { currentTimeFilter = f; render(); }
+    function setCategoryFilter(f) { currentCategoryFilter = f; render(); }
+
+    function getFilteredExpenses() {
+      let f = [...expenses];
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      if (currentTimeFilter === 'daily') f = f.filter(e => new Date(e.date) >= today);
+      else if (currentTimeFilter === 'weekly') {
+        const w = new Date(today); w.setDate(w.getDate() - 7);
+        f = f.filter(e => new Date(e.date) >= w);
+      } else if (currentTimeFilter === 'monthly') {
+        const m = new Date(today); m.setMonth(m.getMonth() - 1);
+        f = f.filter(e => new Date(e.date) >= m);
+      }
+
+      if (currentCategoryFilter !== 'all')
+        f = f.filter(e => e.category === currentCategoryFilter);
+      return f;
+    }
+
+    function getCategoryInfo(v) {
+      return categories.find(c => c.value === v);
+    }
+
+    function render() {
+      const filtered = getFilteredExpenses();
+      const total = filtered.reduce((s, e) => s + e.amount, 0);
+      const avg = filtered.length ? (total / filtered.length) : 0;
+      const catTotals = categories.map(cat => ({
+        ...cat,
+        total: filtered.filter(e => e.category === cat.value).reduce((s, e) => s + e.amount, 0)
+      })).filter(c => c.total > 0);
+
+      document.getElementById('app').innerHTML = `
+        <div class="glass p-6 mb-8 fade-in hover-lift">
+          <div class="flex flex-wrap justify-between items-center mb-6">
+            <div>
+              <h1 class="text-4xl font-bold text-white mb-2">💸 Expense Tracker Pro</h1>
+              <p class="text-gray-300">Smart • Smooth • Stylish</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="exportToCSV()" class="btn-glow bg-green-600 px-4 py-2 rounded-lg font-semibold text-white hover:bg-green-700">📊 Export CSV</button>
+              <button onclick="clearAllData()" class="btn-glow bg-red-600 px-4 py-2 rounded-lg font-semibold text-white hover:bg-red-700">🗑 Clear All</button>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 mb-4">
+            <input id="description" type="text" placeholder="Description (e.g., Dinner)" class="glass w-full px-4 py-3 text-white rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-400 outline-none">
+            <input id="amount" type="number" step="0.01" placeholder="Amount (₹)" class="glass w-full px-4 py-3 text-white rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-indigo-400 outline-none">
+          </div>
+          <div class="grid md:grid-cols-2 gap-4 mb-4">
+            <select id="category" class="glass w-full px-4 py-3 text-white rounded-lg bg-transparent focus:ring-2 focus:ring-indigo-400 outline-none">
+              ${categories.map(c => `<option value="${c.value}" class="text-black">${c.label}</option>`).join('')}
+            </select>
+            <input id="date" type="date" value="${new Date().toISOString().split('T')[0]}" class="glass w-full px-4 py-3 text-white rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none">
+          </div>
+          <button onclick="addExpense()" class="btn-glow w-full bg-indigo-600 py-3 rounded-lg font-bold text-white hover:bg-indigo-700 hover-lift">➕ Add Expense</button>
+        </div>
+
+        <div class="glass p-6 mb-8 hover-lift fade-in">
+          <h2 class="text-2xl font-semibold mb-3 text-white">📅 Filters</h2>
+          <div class="flex flex-wrap gap-2 mb-3">
+            ${['all','daily','weekly','monthly'].map(f => `
+              <button onclick="setTimeFilter('${f}')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentTimeFilter===f?'bg-indigo-600 text-white':'bg-white/10 text-gray-200 hover:bg-white/20'}">${f==='all'?'All Time':f==='daily'?'Today':f==='weekly'?'Last 7 Days':'Last 30 Days'}</button>
+            `).join('')}
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setCategoryFilter('all')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentCategoryFilter==='all'?'bg-indigo-600 text-white':'bg-white/10 text-gray-200 hover:bg-white/20'}">All Categories</button>
+            ${categories.map(c => `
+              <button onclick="setCategoryFilter('${c.value}')" class="px-4 py-2 rounded-lg text-sm font-medium ${currentCategoryFilter===c.value?'bg-indigo-600 text-white':'bg-white/10 text-gray-200 hover:bg-white/20'}">${c.label}</button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-4 mb-8 fade-in">
+          <div class="glass p-4 text-center hover-lift">
+            <p class="text-gray-300">Total Expenses</p>
+            <p class="text-3xl font-bold text-white mt-1">₹${total.toFixed(2)}</p>
+          </div>
+          <div class="glass p-4 text-center hover-lift">
+            <p class="text-gray-300">Total Entries</p>
+            <p class="text-3xl font-bold text-white mt-1">${filtered.length}</p>
+          </div>
+          <div class="glass p-4 text-center hover-lift">
+            <p class="text-gray-300">Average per Entry</p>
+            <p class="text-3xl font-bold text-white mt-1">₹${avg.toFixed(2)}</p>
+          </div>
+        </div>
+
+        ${catTotals.length ? `
+          <div class="glass p-6 mb-8 hover-lift fade-in">
+            <h2 class="text-2xl font-semibold mb-4 text-white">📊 Category Breakdown</h2>
+            <div class="space-y-2">
+              ${catTotals.map(c => `
+                <div class="flex justify-between items-center">
+                  <span class="px-3 py-1 rounded-full text-sm font-medium ${c.color}">${c.label}</span>
+                  <span class="font-semibold text-white">₹${c.total.toFixed(2)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>` : ''}
+
+        <div class="glass p-6 hover-lift fade-in">
+          <h2 class="text-2xl font-semibold mb-4 text-white">🧾 Expenses (${filtered.length})</h2>
+          ${filtered.length === 0 ? `<p class="text-gray-400 text-center py-8">No expenses found.</p>` :
+            filtered.map(e => {
+              const cat = getCategoryInfo(e.category);
+              return `
+                <div class="flex justify-between items-center bg-white/5 p-4 rounded-lg mb-2 hover:bg-white/10 transition">
+                  <div>
+                    <div class="flex gap-2 items-center mb-1">
+                      <span class="px-2 py-1 rounded text-xs font-medium ${cat.color}">${cat.label}</span>
+                      <span class="text-xs text-gray-400">${e.date}</span>
+                    </div>
+                    <p class="font-medium text-white">${e.description}</p>
+                  </div>
+                  <div class="flex gap-3 items-center">
+                    <span class="font-bold text-white">₹${e.amount.toFixed(2)}</span>
+                    <button onclick="deleteExpense(${e.id})" class="text-red-400 hover:text-red-600 text-xl">✖</button>
+                  </div>
+                </div>
+              `;
+            }).join('')
+          }
+        </div>
+      `;
+    }
+
+    render();
+  </script>
+</body>
+</html>
